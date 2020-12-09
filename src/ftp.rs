@@ -164,7 +164,7 @@ impl FtpStream {
             .and_then(|stream| match self.ssl_cfg {
                 Some(ref ssl) => {
                     let mut ssl = Ssl::new(ssl).unwrap();
-                    match self.reader.get_mut() {
+                    match self.reader.get_ref() {
                         DataStream::Tcp(_) => {}
                         DataStream::Ssl(ssl_stream) => unsafe {
                             // SAFETY: ssl_stream was also using the context from self.ssl_cfg
