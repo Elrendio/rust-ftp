@@ -161,11 +161,20 @@ impl FtpStream {
             .and_then(|addr| self.write_str(cmd).map(|_| addr))
             .and_then(|addr| TcpStream::connect(addr).map_err(|e| FtpError::ConnectionError(e)))
             .and_then(|stream| match self.ssl_cfg {
-                Some(ref ssl) => Ssl::new(ssl)
-                    .unwrap()
-                    .connect(stream)
-                    .map(|stream| DataStream::Ssl(stream))
-                    .map_err(|e| FtpError::SecureError(format!("{}", e))),
+                Some(ref ssl) => {
+                    let mut ssl = Ssl::new(ssl).unwrap();
+                    match self.reader.get_mut() {
+                        DataStream::Tcp(_) => {}
+                        DataStream::Ssl(ssl_stream) => unsafe {
+                            // SAFETY: ssl_stream was also using the context from self.ssl_cfg
+                            ssl.set_session(ssl_stream.ssl().session().unwrap())
+                                .map_err(|e| FtpError::SecureError(format!("{}", e)))?
+                        },
+                    }
+                    ssl.connect(stream)
+                        .map(|stream| DataStream::Ssl(stream))
+                        .map_err(|e| FtpError::SecureError(format!("{}", e)))
+                }
                 None => Ok(DataStream::Tcp(stream)),
             })
     }
